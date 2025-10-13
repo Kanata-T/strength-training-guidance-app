@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from 'lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -12,6 +12,8 @@ import {
   type UpcomingSessionPayload
 } from 'lib/trainingSessions';
 import type { User } from '@supabase/supabase-js';
+
+export const dynamic = 'force-dynamic';
 
 const formatDate = (value?: string | null) => {
   if (!value) return '未定';
@@ -111,7 +113,7 @@ const secondsToClock = (value: number) => {
   return `${minutes}:${seconds}`;
 };
 
-export default function TrainingPage() {
+function TrainingPageContent() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -926,5 +928,19 @@ export default function TrainingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TrainingPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-white via-cyan-50/30 to-teal-50/30">
+          <p className="text-sm text-slate-500">読み込み中...</p>
+        </main>
+      }
+    >
+      <TrainingPageContent />
+    </Suspense>
   );
 }

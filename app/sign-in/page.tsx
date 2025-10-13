@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { Suspense, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from 'lib/supabaseClient';
 
+export const dynamic = 'force-dynamic';
+
 const INPUT_BASE =
   'rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-100 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
 
-export default function SignInPage() {
+function SignInPageContent() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -134,5 +136,19 @@ export default function SignInPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
+          <p className="text-sm text-slate-400">読み込み中...</p>
+        </main>
+      }
+    >
+      <SignInPageContent />
+    </Suspense>
   );
 }
