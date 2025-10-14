@@ -206,7 +206,7 @@ const determineTemplateForNewSession = async (client: GenericSupabase, userId: s
   return nextTemplateCode(lastCompleted?.template_code ?? null);
 };
 
-export const ensureUpcomingSession = async (client: GenericSupabase): Promise<UpcomingSessionPayload> => {
+export const ensureUpcomingSession = async (client: GenericSupabase, forceTemplateCode?: TemplateCode): Promise<UpcomingSessionPayload> => {
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError) {
     throw new Error(userError.message);
@@ -267,8 +267,34 @@ export const ensureUpcomingSession = async (client: GenericSupabase): Promise<Up
     } satisfies UpcomingSessionPayload;
   }
 
-  const templateCode = await determineTemplateForNewSession(client, userId);
+  const templateCode = forceTemplateCode ?? await determineTemplateForNewSession(client, userId);
   return createSessionFromTemplate(client, userId, templateCode, previousSession);
+};
+
+export const changeWorkoutType = async (client: GenericSupabase, newTemplateCode: TemplateCode): Promise<UpcomingSessionPayload> => {
+  const { data: userData, error: userError } = await client.auth.getUser();
+  if (userError) {
+    throw new Error(userError.message);
+  }
+  const userId = userData.user?.id;
+  if (!userId) {
+    throw new Error('ユーザーが認証されていません。');
+  }
+
+  // 既存のplannedセッションがあれば削除
+  const { error: deleteError } = await client
+    .from('training_sessions')
+    .delete()
+    .eq('user_id', userId)
+    .eq('status', 'planned');
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  // 新しいテンプレートでセッションを作成
+  const previousSession = await fetchPreviousCompleted(client, userId);
+  return createSessionFromTemplate(client, userId, newTemplateCode, previousSession);
 };
 
   export const fetchProgressSummaries = async (client: GenericSupabase, limit = 6): Promise<SessionProgressSummary[]> => {

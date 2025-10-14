@@ -8,8 +8,10 @@ import {
   startSession,
   logSessionSet,
   completeSession,
+  changeWorkoutType,
   type TrainingSessionSet,
-  type UpcomingSessionPayload
+  type UpcomingSessionPayload,
+  type TemplateCode
 } from 'lib/trainingSessions';
 import type { User } from '@supabase/supabase-js';
 import { AIFormCoach } from '../../components/AIFormCoach';
@@ -399,6 +401,28 @@ function TrainingPageContent() {
 
   const resetForm = () => setFormState(defaultFormState);
 
+  const handleWorkoutChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newTemplateCode = event.target.value as TemplateCode;
+    
+    if (!confirmNavigation()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const newPayload = await changeWorkoutType(supabase, newTemplateCode);
+      setPayload(newPayload);
+      resetForm();
+    } catch (changeError) {
+      console.error(changeError);
+      setError(changeError instanceof Error ? changeError.message : 'ワークアウトの変更に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogSet = async () => {
     if (!payload || !currentSet) return;
     if (!formState.weight || !formState.reps || !formState.rir) {
@@ -662,13 +686,44 @@ function TrainingPageContent() {
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <section className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-cyan-50/30 to-teal-50/30 p-6 shadow-lg shadow-cyan-900/10 lg:p-8">
         <div className="space-y-4 lg:space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <span
-              className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${statusStyles[sessionStatus]}`}
-            >
-              {statusLabels[sessionStatus]}
-            </span>
-            <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-600">Workout {payload.session.template_code}</span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${statusStyles[sessionStatus]}`}
+              >
+                {statusLabels[sessionStatus]}
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.3em] text-cyan-600">Workout {payload.session.template_code}</span>
+            </div>
+            
+            {/* ワークアウト選択ドロップダウン */}
+            {sessionStatus === 'planned' && (
+              <div className="flex flex-col gap-2 lg:items-end">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-slate-500">ワークアウト選択:</label>
+                  <select
+                    value={payload.session.template_code}
+                    onChange={handleWorkoutChange}
+                    disabled={isStarting}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                  >
+                    <option value="A">Workout A - 上半身（プッシュ系）</option>
+                    <option value="B">Workout B - 下半身（前面重視）</option>
+                    <option value="C">Workout C - 上半身（プル系）</option>
+                    <option value="D">Workout D - 下半身（後面重視）</option>
+                  </select>
+                </div>
+                {payload?.previousSession && (
+                  <p className="text-xs text-slate-400">
+                    推奨: {(() => {
+                      const lastCode = payload.previousSession.session.template_code;
+                      const nextCodes = {'A': 'B', 'B': 'C', 'C': 'D', 'D': 'A'} as const;
+                      return `Workout ${nextCodes[lastCode as keyof typeof nextCodes] || 'A'}`;
+                    })()}（前回: {payload.previousSession.session.template_code}）
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="lg:flex lg:items-center lg:justify-between">
             <div>
