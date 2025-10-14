@@ -17,3 +17,12 @@ body {
 main {
   min-height: 100vh;
 }
+
+/* AIチャットボットのアニメーション */
+.animation-delay-100 {
+  animation-delay: 0.1s;
+}
+
+.animation-delay-200 {
+  animation-delay: 0.2s;
+}

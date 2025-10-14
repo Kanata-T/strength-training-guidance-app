@@ -12,6 +12,10 @@ import {
   type UpcomingSessionPayload
 } from 'lib/trainingSessions';
 import type { User } from '@supabase/supabase-js';
+import { AIFormCoach } from '../../components/AIFormCoach';
+import { AIChatBot } from '../../components/AIChatBot';
+import { AIPerformanceAnalyzer } from '../../components/AIPerformanceAnalyzer';
+import { useAIService } from '../../lib/hooks/useAIService';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +130,12 @@ function TrainingPageContent() {
   const [isResting, setIsResting] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isPreviousModalOpen, setIsPreviousModalOpen] = useState(false);
+  
+  // AI機能のステート
+  const [isFormCoachOpen, setIsFormCoachOpen] = useState(false);
+  const [isChatBotOpen, setIsChatBotOpen] = useState(false);
+  const [isPerformanceAnalyzerOpen, setIsPerformanceAnalyzerOpen] = useState(false);
+  const [aiSetAdvice, setAiSetAdvice] = useState<string>('');
   const redirectBackTo = searchParams?.get('redirect') ?? '/training';
   const todayLabel = useMemo(
     () =>
@@ -146,6 +156,7 @@ function TrainingPageContent() {
     stop: stopWorkTimer,
     reset: resetWorkTimer
   } = useStopwatch();
+  const { getSetAdvice } = useAIService();
   const isFormValid = formState.weight.trim() !== '' && formState.reps.trim() !== '' && formState.rir.trim() !== '';
   const isFormDirty = useMemo(
     () => Object.values(formState).some((value) => value.trim() !== ''),
@@ -305,6 +316,35 @@ function TrainingPageContent() {
     } as const;
   }, [payload, currentSet]);
 
+  const previousExerciseData = useMemo(() => {
+    if (!payload?.previousSession || !currentSet) {
+      return null;
+    }
+
+    const previousSets = payload.previousSession.sets
+      .filter((set) => set.exercise_id === currentSet.exercise_id)
+      .sort((a, b) => a.set_number - b.set_number);
+
+    if (previousSets.length === 0) {
+      return null;
+    }
+
+    // 前回のセットの中で最も重い重量を取得
+    const maxWeight = previousSets.reduce((max, set) => {
+      if (set.weight !== null && (max === null || set.weight > max)) {
+        return set.weight;
+      }
+      return max;
+    }, null as number | null);
+
+    return {
+      sets: previousSets,
+      maxWeight,
+      averageWeight: previousSets.length > 0 ? 
+        previousSets.reduce((sum, set) => sum + (set.weight || 0), 0) / previousSets.filter(set => set.weight !== null).length : null
+    };
+  }, [payload?.previousSession, currentSet]);
+
   useEffect(() => {
     const status = payload?.session.status;
     if (!status || status === 'planned') {
@@ -433,6 +473,21 @@ function TrainingPageContent() {
       }
 
       resetForm();
+
+      // AIアドバイスを取得（非同期・エラーは無視）
+      getSetAdvice(
+        currentSet.exercise_name,
+        performedReps,
+        currentSet.target_reps,
+        performedRir,
+        weight
+      ).then(advice => {
+        if (advice) {
+          setAiSetAdvice(advice);
+        }
+      }).catch(err => {
+        console.warn('AI set advice failed:', err);
+      });
     } catch (submitError) {
       console.error(submitError);
       setError(submitError instanceof Error ? submitError.message : 'セット記録に失敗しました');
@@ -620,10 +675,28 @@ function TrainingPageContent() {
               <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">{payload.template.title}</h1>
               <p className="mt-1 text-sm text-slate-500">{payload.template.emphasis}</p>
             </div>
-            <div className="mt-4 hidden gap-2 text-xs text-slate-500 lg:flex">
-              <span>今日: {todayLabel}</span>
-              {payload.session.started_at && <span>開始: {formatDate(payload.session.started_at)}</span>}
-              {payload.session.completed_at && <span>完了: {formatDate(payload.session.completed_at)}</span>}
+            <div className="mt-4 flex flex-wrap items-center gap-3 lg:mt-0">
+              <div className="hidden gap-2 text-xs text-slate-500 lg:flex">
+                <span>今日: {todayLabel}</span>
+                {payload.session.started_at && <span>開始: {formatDate(payload.session.started_at)}</span>}
+                {payload.session.completed_at && <span>完了: {formatDate(payload.session.completed_at)}</span>}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsPerformanceAnalyzerOpen(true)}
+                  className="rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:from-blue-600 hover:to-cyan-600"
+                  title="パフォーマンス分析"
+                >
+                  📊 AI分析
+                </button>
+                <button
+                  onClick={() => setIsChatBotOpen(true)}
+                  className="rounded-full bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:from-green-600 hover:to-emerald-600"
+                  title="AIチャット"
+                >
+                  💬 AI相談
+                </button>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-2 text-[13px] text-slate-500 sm:grid-cols-3 lg:hidden">
@@ -718,7 +791,15 @@ function TrainingPageContent() {
           <div className="mt-6 space-y-6 lg:grid lg:grid-cols-5 lg:items-start lg:gap-6">
             <header className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50 p-5 lg:col-span-2">
               <div className="space-y-2">
-                <p className="text-[11px] uppercase tracking-[0.3em] text-primary">現在の種目</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-primary">現在の種目</p>
+                  <button
+                    onClick={() => setIsFormCoachOpen(true)}
+                    className="rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:from-purple-600 hover:to-pink-600"
+                  >
+                    🤖 AIコーチ
+                  </button>
+                </div>
                 <h3 className="text-xl font-semibold text-slate-900">{activeExercise?.name}</h3>
                 <p className="text-sm text-slate-500">
                   Set {currentExerciseDetails.setNumber} / {currentExerciseDetails.totalSets}（残り {remainingSetsForExercise} セット）
@@ -741,6 +822,26 @@ function TrainingPageContent() {
                   </p>
                 </div>
               </div>
+              {previousExerciseData && previousExerciseData.sets.length > 0 && (
+                <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-slate-400">前回の記録</p>
+                  <div className="space-y-1">
+                    {previousExerciseData.sets.slice(0, 3).map((set, index) => (
+                      <div key={set.id} className="flex justify-between text-xs text-slate-600">
+                        <span>Set {set.set_number}</span>
+                        <span className="font-medium">
+                          {set.weight ? `${set.weight}kg` : '-'} × {set.performed_reps || '-'}回 (RIR{set.performed_rir || '-'})
+                        </span>
+                      </div>
+                    ))}
+                    {previousExerciseData.sets.length > 3 && (
+                      <p className="text-center text-xs text-slate-400">
+                        +{previousExerciseData.sets.length - 3}セット
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </header>
 
             <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-6 lg:col-span-2">
@@ -767,13 +868,21 @@ function TrainingPageContent() {
 
             <div className="grid gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-5 lg:col-span-3 lg:grid-cols-2 xl:grid-cols-3">
               <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs text-slate-500">重量 (kg)</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">重量 (kg)</span>
+                  {previousExerciseData?.maxWeight && (
+                    <span className="text-xs text-slate-400">
+                      前回: {previousExerciseData.maxWeight}kg
+                    </span>
+                  )}
+                </div>
                 <input
                   type="number"
                   min={0}
                   step="0.5"
                   value={formState.weight}
                   onChange={(event) => handleFormChange('weight', event.target.value)}
+                  placeholder={previousExerciseData?.maxWeight ? `前回: ${previousExerciseData.maxWeight}kg` : '重量を入力'}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:border-primary focus:outline-none"
                   disabled={isSubmitting || isResting}
                   required
@@ -828,6 +937,25 @@ function TrainingPageContent() {
                 <span className="text-center text-xs text-slate-500 lg:col-span-2 xl:col-span-3">
                   完了後に {Math.round(currentExerciseDetails.restSeconds / 60)} 分の休憩がスタートします
                 </span>
+              )}
+              
+              {/* AIアドバイス表示 */}
+              {aiSetAdvice && (
+                <div className="mt-3 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50 p-3 lg:col-span-2 xl:col-span-3">
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">🤖</span>
+                    <div>
+                      <p className="text-xs font-semibold text-purple-700">AIコーチからのアドバイス</p>
+                      <p className="mt-1 text-sm text-purple-600">{aiSetAdvice}</p>
+                      <button
+                        onClick={() => setAiSetAdvice('')}
+                        className="mt-2 text-xs text-purple-500 hover:text-purple-700"
+                      >
+                        閉じる
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -926,6 +1054,35 @@ function TrainingPageContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* AIコンポーネント */}
+      {isFormCoachOpen && activeExercise && (
+        <AIFormCoach
+          exerciseName={activeExercise.name}
+          onClose={() => setIsFormCoachOpen(false)}
+        />
+      )}
+      
+      <AIChatBot
+        isOpen={isChatBotOpen}
+        onClose={() => setIsChatBotOpen(false)}
+        context={{
+          currentExercise: activeExercise?.name,
+          sessionData: payload || undefined,
+          userLevel: 'intermediate', // デフォルト値
+        }}
+      />
+      
+      {isPerformanceAnalyzerOpen && payload && (
+        <AIPerformanceAnalyzer
+          isOpen={isPerformanceAnalyzerOpen}
+          onClose={() => setIsPerformanceAnalyzerOpen(false)}
+          sessionHistory={payload.previousSession ? [{
+            date: payload.previousSession.session.completed_at || '',
+            sets: payload.previousSession.sets,
+          }] : []}
+        />
       )}
     </div>
   );
