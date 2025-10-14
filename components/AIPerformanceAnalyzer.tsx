@@ -17,7 +17,12 @@ export const AIPerformanceAnalyzer: React.FC<AIPerformanceAnalyzerProps> = ({
   sessionHistory,
 }) => {
   const { analyzePerformance, isLoading, error } = useAIService();
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<{
+    analysis: string;
+    recommendations: string[];
+    needsDeload: boolean;
+    deloadReason?: string;
+  } | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<string>('');
 
   // セッション履歴から種目を抽出

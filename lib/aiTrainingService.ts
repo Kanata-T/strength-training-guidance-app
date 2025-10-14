@@ -1,5 +1,5 @@
 import { geminiModel } from './geminiClient';
-import type { TrainingSessionSet, UpcomingSessionPayload } from './trainingSessions';
+import type { UpcomingSessionPayload } from './trainingSessions';
 
 export interface FormAnalysisRequest {
   exerciseName: string;

@@ -826,7 +826,7 @@ function TrainingPageContent() {
                 <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
                   <p className="mb-2 text-[11px] uppercase tracking-[0.2em] text-slate-400">前回の記録</p>
                   <div className="space-y-1">
-                    {previousExerciseData.sets.slice(0, 3).map((set, index) => (
+                    {previousExerciseData.sets.slice(0, 3).map((set) => (
                       <div key={set.id} className="flex justify-between text-xs text-slate-600">
                         <span>Set {set.set_number}</span>
                         <span className="font-medium">
