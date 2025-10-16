@@ -8,7 +8,9 @@ import {
   startSession,
   logSessionSet,
   completeSession,
+  forceCompleteSession,
   changeWorkoutType,
+  refreshSessionRecommendations,
   type TrainingSessionSet,
   type UpcomingSessionPayload,
   type TemplateCode
@@ -119,6 +121,30 @@ const secondsToClock = (value: number) => {
   return `${minutes}:${seconds}`;
 };
 
+const secondsToMinuteText = (seconds: number) => {
+  const minutes = seconds / 60;
+  if (Number.isNaN(minutes)) {
+    return '';
+  }
+  return Number.isInteger(minutes) ? `${minutes}分` : `${minutes.toFixed(1)}分`;
+};
+
+const formatRangeLabel = (
+  min?: number | null,
+  max?: number | null,
+  formatter: (value: number) => string = (value) => value.toString()
+) => {
+  if (min == null && max == null) {
+    return null;
+  }
+  const normalizedMin = min ?? max ?? 0;
+  const normalizedMax = max ?? min ?? 0;
+  if (normalizedMin === normalizedMax) {
+    return formatter(normalizedMin);
+  }
+  return `${formatter(normalizedMin)}-${formatter(normalizedMax)}`;
+};
+
 function TrainingPageContent() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -149,8 +175,31 @@ function TrainingPageContent() {
     []
   );
 
+  const refreshCurrentRecommendations = useCallback(async () => {
+    const sessionId = payload?.session.id;
+    if (!sessionId) {
+      return;
+    }
+
+    try {
+      const updatedSets = await refreshSessionRecommendations(supabase, sessionId);
+      setPayload((prev) => {
+        if (!prev || prev.session.id !== sessionId) {
+          return prev;
+        }
+        return {
+          ...prev,
+          sets: updatedSets
+        } satisfies UpcomingSessionPayload;
+      });
+    } catch (refreshError) {
+      console.error('推奨値の再計算に失敗しました:', refreshError);
+    }
+  }, [payload?.session.id, supabase]);
+
   const { seconds: restSeconds, start: startRest } = useRestTimer(null, () => {
     setIsResting(false);
+    void refreshCurrentRecommendations();
   });
   const {
     seconds: workSeconds,
@@ -306,15 +355,25 @@ function TrainingPageContent() {
       .sort((a, b) => a.set_number - b.set_number);
 
     const completedSets = setsForExercise.filter((set) => set.performed_reps !== null).length;
+    const restSeconds = currentSet.rest_seconds ?? exerciseMeta.prescription.restSeconds;
 
     return {
       exercise: exerciseMeta,
       totalSets: setsForExercise.length,
       completedSets,
       setNumber: currentSet.set_number,
-      targetReps: exerciseMeta.prescription.reps,
-      targetRir: exerciseMeta.prescription.rir,
-      restSeconds: exerciseMeta.prescription.restSeconds
+      targetReps: currentSet.target_reps ?? exerciseMeta.prescription.reps,
+      targetRepsMin: currentSet.target_reps_min ?? exerciseMeta.prescription.repsMin ?? null,
+      targetRepsMax: currentSet.target_reps_max ?? exerciseMeta.prescription.repsMax ?? null,
+      targetRir: currentSet.target_rir ?? exerciseMeta.prescription.rir,
+      targetRirMin: currentSet.target_rir_min ?? exerciseMeta.prescription.rirMin ?? null,
+      targetRirMax: currentSet.target_rir_max ?? exerciseMeta.prescription.rirMax ?? null,
+      restSeconds,
+      restSecondsMin: currentSet.rest_seconds_min ?? exerciseMeta.prescription.restSecondsMin ?? restSeconds ?? null,
+      restSecondsMax: currentSet.rest_seconds_max ?? exerciseMeta.prescription.restSecondsMax ?? restSeconds ?? null,
+      recommendedWeight: currentSet.recommended_weight,
+      progressionGoal: currentSet.progression_goal ?? null,
+      progressionNotes: currentSet.progression_notes ?? null
     } as const;
   }, [payload, currentSet]);
 
@@ -347,6 +406,72 @@ function TrainingPageContent() {
     };
   }, [payload?.previousSession, currentSet]);
 
+  const progressionSummary = useMemo(() => {
+    if (!currentExerciseDetails || !currentSet) {
+      return null;
+    }
+
+    const { prescription } = currentExerciseDetails.exercise;
+    const repsMin = currentSet.target_reps_min ?? prescription.repsMin;
+    const repsMax = currentSet.target_reps_max ?? prescription.repsMax;
+    const rirMin = currentSet.target_rir_min ?? prescription.rirMin;
+    const rirMax = currentSet.target_rir_max ?? prescription.rirMax;
+    const restMin = currentSet.rest_seconds_min ?? prescription.restSecondsMin ?? prescription.restSeconds;
+    const restMax = currentSet.rest_seconds_max ?? prescription.restSecondsMax ?? prescription.restSeconds;
+
+    const repsRange = formatRangeLabel(repsMin, repsMax, (value) => value.toString());
+    const rirRange = formatRangeLabel(rirMin, rirMax, (value) => value.toString());
+    const restRange =
+      restMin != null || restMax != null
+        ? formatRangeLabel(restMin, restMax, (value) => secondsToMinuteText(value))
+        : null;
+
+    return {
+      repsText: currentSet.target_reps ?? prescription.reps,
+      repsLabel: repsRange,
+      rirText: currentSet.target_rir ?? prescription.rir,
+      rirLabel: rirRange ? `RIR ${rirRange}` : null,
+      restLabel: restRange,
+      recommendedWeight: currentSet.recommended_weight,
+      recommendedWeightLabel:
+        currentSet.recommended_weight != null ? `${currentSet.recommended_weight.toFixed(1)}kg` : null,
+      goal: currentSet.progression_goal ?? null,
+      notes: currentSet.progression_notes ?? null
+    } as const;
+  }, [currentExerciseDetails, currentSet]);
+
+  const renderSupplementalLabel = (
+    primary?: string | null,
+    secondary?: string | null
+  ) => {
+    if (!secondary) {
+      return null;
+    }
+    if (primary && primary.replace(/\s+/g, '') === secondary.replace(/\s+/g, '')) {
+      return null;
+    }
+    return <span className="ml-1 text-xs text-slate-400">({secondary})</span>;
+  };
+
+  const recommendedWeightDisplay = progressionSummary?.recommendedWeightLabel
+    ?? (previousExerciseData?.maxWeight != null ? `${previousExerciseData.maxWeight}kg` : '---');
+  const recommendedWeightHint = progressionSummary?.recommendedWeightLabel
+    ? 'アルゴリズム推定値'
+    : previousExerciseData?.maxWeight != null
+      ? '前回記録を参考に'
+      : '記録を入力すると推奨値を生成';
+  const targetRepsDisplay = progressionSummary?.repsText ?? currentExerciseDetails?.targetReps ?? '-';
+  const targetRirDisplay = progressionSummary?.rirText ?? currentExerciseDetails?.targetRir ?? '-';
+  const restDisplay = progressionSummary?.restLabel
+    ?? (currentExerciseDetails?.restSeconds
+      ? secondsToMinuteText(currentExerciseDetails.restSeconds)
+      : '指定なし');
+  const weightPlaceholder = progressionSummary?.recommendedWeightLabel
+    ? `推奨: ${progressionSummary.recommendedWeightLabel}`
+    : previousExerciseData?.maxWeight != null
+      ? `前回: ${previousExerciseData.maxWeight}kg`
+      : '重量を入力';
+
   useEffect(() => {
     const status = payload?.session.status;
     if (!status || status === 'planned') {
@@ -374,8 +499,8 @@ function TrainingPageContent() {
 
     try {
       setIsStarting(true);
-  await startSession(supabase, payload.session.id);
-  setError(null);
+      await startSession(supabase, payload.session.id);
+      setError(null);
       setPayload((prev) => {
         if (!prev) return prev;
         return {
@@ -392,6 +517,37 @@ function TrainingPageContent() {
       setError(startError instanceof Error ? startError.message : 'セッション開始に失敗しました');
     } finally {
       setIsStarting(false);
+    }
+  };
+
+  const handleForceCompleteSession = async () => {
+    if (!payload) return;
+
+    const remainingSetCount = payload.sets.filter((set) => set.performed_reps === null).length;
+    const message = remainingSetCount > 0
+      ? `未完了のセットが ${remainingSetCount} 件あります。このセッションを強制終了して記録を締めますか？`
+      : 'このセッションを強制終了しますか？';
+
+    if (!window.confirm(message)) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await forceCompleteSession(supabase, payload.session.id);
+      const next = await ensureUpcomingSession(supabase);
+      setPayload(next);
+      setIsResting(false);
+      startRest(null);
+      resetForm();
+      stopWorkTimer();
+      resetWorkTimer();
+      setError(null);
+    } catch (forceError) {
+      console.error(forceError);
+      setError(forceError instanceof Error ? forceError.message : 'セッションの強制終了に失敗しました');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -494,6 +650,7 @@ function TrainingPageContent() {
         setIsResting(false);
         stopWorkTimer();
         resetWorkTimer();
+        void refreshCurrentRecommendations();
       }
 
       resetForm();
@@ -524,6 +681,7 @@ function TrainingPageContent() {
     startRest(null);
     setIsResting(false);
     resetWorkTimer();
+    void refreshCurrentRecommendations();
   };
 
   const handleCompleteSession = async () => {
@@ -622,10 +780,27 @@ function TrainingPageContent() {
   } satisfies Record<'planned' | 'in-progress' | 'completed', string>;
   const sessionStatus = payload.session.status;
   const activeExercise = currentExerciseDetails?.exercise;
+  const activeTechnique = activeExercise?.technique;
 
   const remainingSetsForExercise = currentExerciseDetails
     ? Math.max(currentExerciseDetails.totalSets - currentExerciseDetails.setNumber, 0)
     : 0;
+
+  const renderTechniqueList = (label: string, items?: string[]) => {
+    if (!items || items.length === 0) {
+      return null;
+    }
+    return (
+      <div>
+        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <ul className="mt-1 space-y-1 list-disc pl-4 text-sm text-slate-600">
+          {items.map((item, index) => (
+            <li key={`${label}-${index}`}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
 
   const handleSignOut = async () => {
     if (!confirmNavigation()) {
@@ -736,7 +911,7 @@ function TrainingPageContent() {
                 {payload.session.started_at && <span>開始: {formatDate(payload.session.started_at)}</span>}
                 {payload.session.completed_at && <span>完了: {formatDate(payload.session.completed_at)}</span>}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setIsPerformanceAnalyzerOpen(true)}
                   className="rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:from-blue-600 hover:to-cyan-600"
@@ -751,6 +926,16 @@ function TrainingPageContent() {
                 >
                   💬 AI相談
                 </button>
+                {sessionStatus === 'in-progress' && (
+                  <button
+                    onClick={handleForceCompleteSession}
+                    disabled={isSubmitting}
+                    className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-40"
+                    title="セッションを強制終了"
+                  >
+                    ⚠️ 強制終了
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -758,6 +943,16 @@ function TrainingPageContent() {
             <span>今日: {todayLabel}</span>
             {payload.session.started_at && <span>開始: {formatDate(payload.session.started_at)}</span>}
             {payload.session.completed_at && <span>完了: {formatDate(payload.session.completed_at)}</span>}
+                {sessionStatus === 'in-progress' && (
+                  <button
+                    onClick={handleForceCompleteSession}
+                    disabled={isSubmitting}
+                    className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-40"
+                    title="セッションを強制終了"
+                  >
+                    ⚠️ 強制終了
+                  </button>
+                )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[3fr_2fr]">
             <div className="rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50/50 via-white to-teal-50/30 p-5 shadow-sm shadow-cyan-900/5 transition hover:shadow-md hover:shadow-cyan-900/10">
@@ -860,20 +1055,52 @@ function TrainingPageContent() {
                   Set {currentExerciseDetails.setNumber} / {currentExerciseDetails.totalSets}（残り {remainingSetsForExercise} セット）
                 </p>
               </div>
-              {activeExercise?.notes && <p className="text-sm text-slate-500">{activeExercise.notes}</p>}
-              <div className="grid grid-cols-3 gap-3 text-center text-xs text-slate-600">
+              {(activeExercise?.notes || activeTechnique) && (
+                <div className="mt-3 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">フォームガイド</p>
+                  {activeExercise?.notes && <p className="text-sm text-slate-600">{activeExercise.notes}</p>}
+                  {renderTechniqueList('姿勢づくり', activeTechnique?.setup)}
+                  {renderTechniqueList('動作のポイント', activeTechnique?.execution)}
+                  {activeTechnique?.breathing && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">呼吸・体幹</p>
+                      <p className="mt-1 text-sm text-slate-600">{activeTechnique.breathing}</p>
+                    </div>
+                  )}
+                  {renderTechniqueList('ありがちなミス', activeTechnique?.mistakes)}
+                  {activeTechnique?.progression && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">プログレッション</p>
+                      <p className="mt-1 text-sm text-slate-600">{activeTechnique.progression}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3 text-center text-xs text-slate-600 sm:grid-cols-4">
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">目標レップ</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{currentExerciseDetails.targetReps}</p>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">推奨重量</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{recommendedWeightDisplay}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">{recommendedWeightHint}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">目標RIR</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{currentExerciseDetails.targetRir}</p>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">推奨レップ</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {targetRepsDisplay}
+                    {renderSupplementalLabel(targetRepsDisplay, progressionSummary?.repsLabel)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">推奨RIR</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {targetRirDisplay}
+                    {renderSupplementalLabel(targetRirDisplay, progressionSummary?.rirLabel)}
+                  </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
                   <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">推奨休憩</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {currentExerciseDetails.restSeconds ? `${Math.round(currentExerciseDetails.restSeconds / 60)}分` : '指定なし'}
+                    {restDisplay}
+                    {renderSupplementalLabel(restDisplay, progressionSummary?.restLabel)}
                   </p>
                 </div>
               </div>
@@ -925,10 +1152,17 @@ function TrainingPageContent() {
               <label className="flex flex-col gap-1 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500">重量 (kg)</span>
-                  {previousExerciseData?.maxWeight && (
-                    <span className="text-xs text-slate-400">
-                      前回: {previousExerciseData.maxWeight}kg
-                    </span>
+                  {(progressionSummary?.recommendedWeightLabel || previousExerciseData?.maxWeight) && (
+                    <div className="flex flex-col items-end gap-0.5 text-xs text-slate-400">
+                      {progressionSummary?.recommendedWeightLabel && (
+                        <span className="font-semibold text-primary">
+                          推奨: {progressionSummary.recommendedWeightLabel}
+                        </span>
+                      )}
+                      {previousExerciseData?.maxWeight && (
+                        <span>前回: {previousExerciseData.maxWeight}kg</span>
+                      )}
+                    </div>
                   )}
                 </div>
                 <input
@@ -937,7 +1171,7 @@ function TrainingPageContent() {
                   step="0.5"
                   value={formState.weight}
                   onChange={(event) => handleFormChange('weight', event.target.value)}
-                  placeholder={previousExerciseData?.maxWeight ? `前回: ${previousExerciseData.maxWeight}kg` : '重量を入力'}
+                  placeholder={weightPlaceholder}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:border-primary focus:outline-none"
                   disabled={isSubmitting || isResting}
                   required
@@ -990,7 +1224,7 @@ function TrainingPageContent() {
               </button>
               {!isResting && currentExerciseDetails.restSeconds > 0 && (
                 <span className="text-center text-xs text-slate-500 lg:col-span-2 xl:col-span-3">
-                  完了後に {Math.round(currentExerciseDetails.restSeconds / 60)} 分の休憩がスタートします
+                  完了後に {secondsToMinuteText(currentExerciseDetails.restSeconds)} の休憩がスタートします
                 </span>
               )}
               
