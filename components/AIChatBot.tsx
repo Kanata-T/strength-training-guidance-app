@@ -89,47 +89,49 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({ isOpen, onClose, context }
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-end">
-      <div className="h-[600px] w-full max-w-md rounded-t-3xl border-l border-t border-slate-200 bg-white shadow-2xl shadow-slate-900/20 sm:mb-4 sm:mr-4 sm:h-[500px] sm:rounded-3xl sm:border">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-end sm:justify-end bg-black/50 sm:bg-transparent">
+      {/* モバイル：画面全体、デスクトップ：右下に配置 */}
+      <div className="h-full w-full sm:h-[600px] sm:w-full sm:max-w-md sm:mb-4 sm:mr-4 rounded-none sm:rounded-3xl border-0 sm:border sm:border-slate-200 bg-white shadow-2xl shadow-slate-900/20 flex flex-col modal-content">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:py-3 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
-              <span className="text-white text-sm font-semibold">AI</span>
+            <div className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center shrink-0">
+              <span className="text-white text-base sm:text-sm font-semibold">AI</span>
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900 text-sm">トレーニングAI</h3>
-              <p className="text-xs text-slate-500">
+              <h3 className="font-semibold text-slate-900 text-base sm:text-sm">トレーニングAI</h3>
+              <p className="text-sm sm:text-xs text-slate-500">
                 {context?.currentExercise ? `現在: ${context.currentExercise}` : 'いつでも質問OK'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-slate-400 hover:text-slate-600"
+            className="rounded-full p-2 text-slate-400 hover:text-slate-600 min-h-touch min-w-touch flex items-center justify-center"
+            aria-label="閉じる"
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-6 w-6 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 h-[calc(100%-8rem)] space-y-3">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 overscroll-contain">
           {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                className={`max-w-[85%] sm:max-w-[80%] rounded-2xl px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm ${
                   message.isUser
                     ? 'bg-primary text-white'
                     : 'bg-slate-100 text-slate-900'
                 }`}
               >
-                <p className="whitespace-pre-wrap">{message.text}</p>
-                <p className={`mt-1 text-xs ${message.isUser ? 'text-cyan-200' : 'text-slate-500'}`}>
+                <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>
+                <p className={`mt-2 sm:mt-1 text-sm sm:text-xs ${message.isUser ? 'text-cyan-200' : 'text-slate-500'}`}>
                   {message.timestamp.toLocaleTimeString('ja-JP', { 
                     hour: '2-digit', 
                     minute: '2-digit' 
@@ -141,11 +143,11 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({ isOpen, onClose, context }
           
           {isLoading && (
             <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-2xl bg-slate-100 px-3 py-2 text-sm">
-                <div className="flex items-center gap-1">
-                  <div className="h-2 w-2 rounded-full bg-slate-400 animate-pulse"></div>
-                  <div className="h-2 w-2 rounded-full bg-slate-400 animate-pulse animation-delay-100"></div>
-                  <div className="h-2 w-2 rounded-full bg-slate-400 animate-pulse animation-delay-200"></div>
+              <div className="max-w-[85%] sm:max-w-[80%] rounded-2xl bg-slate-100 px-4 py-3 sm:px-3 sm:py-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-2.5 sm:h-2 sm:w-2 rounded-full bg-slate-400 animate-pulse"></div>
+                  <div className="h-2.5 w-2.5 sm:h-2 sm:w-2 rounded-full bg-slate-400 animate-pulse animation-delay-100"></div>
+                  <div className="h-2.5 w-2.5 sm:h-2 sm:w-2 rounded-full bg-slate-400 animate-pulse animation-delay-200"></div>
                 </div>
               </div>
             </div>
@@ -155,14 +157,14 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({ isOpen, onClose, context }
 
         {/* Quick questions (only if no messages from user yet) */}
         {messages.length === 1 && (
-          <div className="border-t border-slate-100 px-4 py-2">
-            <p className="text-xs text-slate-500 mb-2">よくある質問:</p>
-            <div className="flex flex-wrap gap-1">
+          <div className="border-t border-slate-100 px-4 py-3 sm:py-2 shrink-0">
+            <p className="text-sm sm:text-xs text-slate-500 mb-2">よくある質問:</p>
+            <div className="flex flex-wrap gap-2 sm:gap-1">
               {quickQuestions.slice(0, 3).map((question, index) => (
                 <button
                   key={index}
                   onClick={() => handleQuickQuestion(question)}
-                  className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 transition"
+                  className="rounded-full bg-slate-100 px-3 py-2 sm:px-2 sm:py-1 text-sm sm:text-xs text-slate-600 hover:bg-slate-200 transition min-h-touch"
                 >
                   {question}
                 </button>
@@ -172,29 +174,30 @@ export const AIChatBot: React.FC<AIChatBotProps> = ({ isOpen, onClose, context }
         )}
 
         {/* Input */}
-        <form onSubmit={handleSendMessage} className="border-t border-slate-100 p-4">
+        <form onSubmit={handleSendMessage} className="border-t border-slate-100 p-4 shrink-0 bg-white">
           <div className="flex gap-2">
             <input
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               placeholder="質問を入力..."
-              className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 rounded-xl border border-slate-200 px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               disabled={isLoading}
             />
             <button
               type="submit"
               disabled={!inputMessage.trim() || isLoading}
-              className="rounded-xl bg-primary px-3 py-2 text-white transition hover:bg-primary-dark disabled:opacity-50"
+              className="rounded-xl bg-primary px-4 py-3 sm:px-3 sm:py-2 text-white transition hover:bg-primary-dark disabled:opacity-50 min-h-touch min-w-touch flex items-center justify-center"
+              aria-label="送信"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
             </button>
           </div>
           
           {error && (
-            <p className="mt-2 text-xs text-red-600">{error}</p>
+            <p className="mt-2 text-sm sm:text-xs text-red-600">{error}</p>
           )}
         </form>
       </div>

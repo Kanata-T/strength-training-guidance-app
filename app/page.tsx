@@ -43,24 +43,25 @@ type SiteHeaderProps = {
 
 const SiteHeader = ({ activeHref }: SiteHeaderProps) => (
   <header className="sticky top-0 z-20 border-b border-cyan-100/20 bg-gradient-to-r from-white/95 to-cyan-50/80 shadow-sm shadow-cyan-900/5 backdrop-blur">
-    <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-      <Link href="/" className="text-sm font-semibold text-slate-900 transition hover:text-cyan-600 sm:text-base">
+    <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3 lg:px-8">
+      <Link href="/" className="text-base font-semibold text-slate-900 transition hover:text-cyan-600 sm:text-lg whitespace-nowrap min-w-touch">
         Strength Guide
       </Link>
-      <nav className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+      <nav className="flex flex-wrap items-center justify-end gap-1.5 text-sm sm:gap-2 sm:text-sm">
         {NAV_LINKS.map((link) => {
           const isActive = link.href === activeHref;
           return (
             <Link
               key={link.href}
               href={link.href}
-              className={`rounded-full px-3 py-1 font-medium transition ${
+              className={`rounded-full px-2.5 py-1.5 font-medium transition min-h-touch flex items-center justify-center text-xs sm:text-sm sm:px-3 sm:py-1 ${
                 isActive
                   ? 'border border-cyan-600/40 bg-gradient-to-r from-cyan-500/10 to-teal-500/10 text-cyan-700 hover:from-cyan-500/20 hover:to-teal-500/20'
                   : 'border border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-900'
               }`}
             >
-              {link.label}
+              <span className="hidden sm:inline">{link.label}</span>
+              <span className="sm:hidden">{link.label.replace('ページ', '').replace('一覧', '').replace('の記録', '')}</span>
             </Link>
           );
         })}
@@ -184,34 +185,34 @@ export default function HomePage() {
     return (
       <div className="flex min-h-screen flex-col bg-white text-slate-900">
         <SiteHeader activeHref="/" />
-        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-          <section className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-cyan-50/30 to-teal-50/30 p-8 shadow-xl shadow-cyan-900/10">
+        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 sm:gap-8 px-4 py-6 sm:py-10 sm:px-6 lg:px-8">
+          <section className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-cyan-50/30 to-teal-50/30 p-5 sm:p-8 shadow-xl shadow-cyan-900/10">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h1 className="text-3xl font-semibold text-slate-900">個人用トレーニングガイド</h1>
-                <p className="mt-2 text-sm text-slate-600">
+                <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900">個人用トレーニングガイド</h1>
+                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
                   科学的根拠に基づく高負荷マシントレーニングプロトコルを、あなたの状態に合わせて活用しましょう。
                 </p>
               </div>
               <div className="flex flex-col gap-2 text-sm text-slate-600">
                 <span className="text-xs uppercase tracking-[0.3em] text-cyan-600">Workout Cycle</span>
-                <p>ワークアウトは A → B → C → D の順番で自動提案されます。</p>
+                <p className="leading-relaxed">ワークアウトは A → B → C → D の順番で自動提案されます。</p>
                 <Link
                   href="/sign-in"
-                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-900/20 transition hover:from-cyan-600 hover:to-teal-600"
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 px-5 py-3 sm:py-2 text-base sm:text-sm font-semibold text-white shadow-lg shadow-cyan-900/20 transition hover:from-cyan-600 hover:to-teal-600 min-h-touch"
                 >
                   サインインして始める
                 </Link>
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="mt-6 grid gap-5 sm:gap-4 md:grid-cols-2">
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-slate-700">経験レベル</span>
+                <span className="text-base sm:text-sm font-medium text-slate-700">経験レベル</span>
                 <select
                   value={preferences.experienceLevel}
                   onChange={(event) => updatePreferences({ experienceLevel: event.target.value as TrainingPreferences['experienceLevel'] })}
-                  className="rounded-lg border border-cyan-200 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  className="rounded-lg border border-cyan-200 bg-white px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                 >
                   {experiences.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -222,24 +223,24 @@ export default function HomePage() {
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-slate-700">週あたりトレーニング日数</span>
+                <span className="text-base sm:text-sm font-medium text-slate-700">週あたりトレーニング日数</span>
                 <input
                   type="number"
                   min={3}
                   max={6}
                   value={preferences.availableDays}
                   onChange={(event) => updatePreferences({ availableDays: Number(event.target.value) as TrainingPreferences['availableDays'] })}
-                  className="rounded-lg border border-cyan-200 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  className="rounded-lg border border-cyan-200 bg-white px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                 />
-                {errors.availableDays && <span className="text-xs text-red-600">{errors.availableDays}</span>}
+                {errors.availableDays && <span className="text-sm sm:text-xs text-red-600">{errors.availableDays}</span>}
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-slate-700">フォーカス領域</span>
+                <span className="text-base sm:text-sm font-medium text-slate-700">フォーカス領域</span>
                 <select
                   value={preferences.focusArea}
                   onChange={(event) => updatePreferences({ focusArea: event.target.value as TrainingPreferences['focusArea'] })}
-                  className="rounded-lg border border-cyan-200 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  className="rounded-lg border border-cyan-200 bg-white px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                 >
                   {focusAreas.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -250,11 +251,11 @@ export default function HomePage() {
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-slate-700">アイソレーション種目を含める</span>
+                <span className="text-base sm:text-sm font-medium text-slate-700">アイソレーション種目を含める</span>
                 <select
                   value={preferences.includeIsolation ? 'yes' : 'no'}
                   onChange={(event) => updatePreferences({ includeIsolation: event.target.value === 'yes' })}
-                  className="rounded-lg border border-cyan-200 bg-white px-3 py-2 text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  className="rounded-lg border border-cyan-200 bg-white px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
                 >
                   <option value="yes">含める</option>
                   <option value="no">除外</option>
@@ -263,10 +264,10 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-cyan-50/20 to-teal-50/20 p-6 shadow-lg shadow-cyan-900/10">
+          <section className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-cyan-50/20 to-teal-50/20 p-5 sm:p-6 shadow-lg shadow-cyan-900/10">
             <header className="flex flex-col gap-1">
-              <h2 className="text-2xl font-semibold text-slate-900">推奨プラン</h2>
-              <p className="text-sm text-slate-600">頻度: 週{Math.min(preferences.availableDays, 4)}日 / 目標ボリューム: 筋群あたり約{plan.totalVolumeTargetPerMuscle}セット</p>
+              <h2 className="text-xl sm:text-2xl font-semibold text-slate-900">推奨プラン</h2>
+              <p className="text-sm text-slate-600 leading-relaxed">頻度: 週{Math.min(preferences.availableDays, 4)}日 / 目標ボリューム: 筋群あたり約{plan.totalVolumeTargetPerMuscle}セット</p>
             </header>
 
             <div className="mt-6 space-y-6">
